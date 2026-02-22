@@ -4,8 +4,6 @@
 <meta charset="UTF-8">
 <title>Dispatch FG Store</title>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-
 <style>
 body{margin:0;font-family:'Segoe UI',sans-serif;background:linear-gradient(135deg,#667eea,#764ba2);min-height:100vh;}
 .login-wrapper{display:flex;justify-content:center;align-items:center;height:100vh;}
@@ -26,6 +24,14 @@ input,select{width:95%;border:none;text-align:center;background:transparent;font
 .print-btn{background:#007bff;color:white;}
 .delete-btn{background:#d9534f;color:white;border:none;padding:8px 15px;cursor:pointer;border-radius:4px;font-weight:bold;}
 .action-buttons{text-align:center;margin-top:20px;}
+
+@media print {
+.add-btn,.action-buttons,.delete-btn,#backBtn,.login-wrapper{display:none !important;}
+th:nth-child(6), td:nth-child(6),
+th:nth-child(8), td:nth-child(8){display:none !important;}
+.container{width:100% !important;margin:0 !important;box-shadow:none !important;display:block !important;}
+body{background:white !important;}
+}
 </style>
 </head>
 
@@ -69,9 +75,12 @@ DISPATCH (FG STORE)
 </tr>
 </thead>
 <tbody id="data-body"></tbody>
+
 <tfoot>
 <tr>
-<td colspan="4" style="text-align:right;font-weight:bold;font-size:20px;">Grand Total :</td>
+<td colspan="4" style="text-align:right;font-weight:bold;font-size:20px;">
+Grand Total :
+</td>
 <td style="font-weight:bold;font-size:20px;" id="grandTotal">0</td>
 <td colspan="3"></td>
 </tr>
@@ -80,31 +89,26 @@ DISPATCH (FG STORE)
 
 <button class="add-btn" onclick="addRow()">+ Add Model</button>
 
-<!-- DATE RANGE SECTION -->
-<div style="margin:25px 0;text-align:center;">
-<label><b>From:</b></label>
-<input type="date" id="fromDate">
-<label style="margin-left:20px;"><b>To:</b></label>
-<input type="date" id="toDate">
-<button class="print-btn" onclick="downloadDateRange()">Download Date Report</button>
+<!-- CLEAN SIGNATURE SECTION -->
+<div style="margin-top:15px; display:flex; justify-content:space-between; padding:0 150px; font-size:18px;">
+<div>
+<b>Issuer :</b> <span id="issuerName"></span>
 </div>
-
-<!-- SIGNATURE -->
-<div style="margin-top:10px; display:flex; justify-content:space-between; padding:0 150px; font-size:18px;">
-<div><b>Issuer :</b> <span id="issuerName"></span></div>
-<div><b>Receiver</b></div>
+<div>
+<b>Receiver</b>
+</div>
 </div>
 
 <div class="action-buttons">
 <button class="submit-btn" onclick="submitForm()">Submit</button>
 <button class="print-btn" onclick="window.print()">Print</button>
 <button class="print-btn" onclick="reprintSlip()">Reprint Slip</button>
-<button class="print-btn" onclick="downloadPDF()">Download PDF</button>
 </div>
 
 </div>
 
 <script>
+
 const webAppUrl="https://script.google.com/macros/s/AKfycbyHZIR3-HP2-H_Qlzgs6uzgM66sU7DLXNpCv8rOFpgLMqll7sllAo9EE3n-dKnrAmWq8A/exec";
 
 let masterData=[];
@@ -115,24 +119,32 @@ const dataBody=document.getElementById("data-body");
 function login(){
 let user=username.value.trim();
 let pass=password.value.trim();
-if(!user||!pass){loginMsg.innerText="Enter Username & Password";return;}
-fetch(webAppUrl+"?action=login&user="+user+"&pass="+pass)
+if(!user || !pass){ loginMsg.innerText="Enter Username & Password"; return; }
+
+fetch(webAppUrl+"?action=login&user="+encodeURIComponent(user)+"&pass="+encodeURIComponent(pass))
 .then(res=>res.json())
 .then(data=>{
 if(data.status==="success"){
-userRole=data.role||"";
+userRole=data.role || "";
 loggedUser=user;
-issuerName.innerText=loggedUser;
+document.getElementById("issuerName").innerText=loggedUser;
 loginDiv.style.display="none";
 dispatchForm.style.display="block";
+document.body.style.background="#f4f4f4";
 init();
-}else{loginMsg.innerText="Invalid Login";}
-});
+}else{
+loginMsg.innerText=data.message || "Invalid Login!";
+}
+})
+.catch(()=> alert("Server Connection Error"));
 }
 
 function init(){
 date_header.innerText=new Date().toLocaleDateString("en-GB");
-grandTotal.innerText=0;
+document.getElementById("backBtn").style.display="none";
+document.getElementById("issuerName").innerText=loggedUser;
+document.getElementById("grandTotal").innerText=0;
+
 fetch(webAppUrl)
 .then(res=>res.json())
 .then(data=>{
@@ -172,6 +184,9 @@ let item=masterData.find(x=>x.model===sel.value);
 if(item){
 row.querySelector(".std").value=item.standardBox;
 row.querySelector(".stock").innerText=item.stock;
+}else{
+row.querySelector(".std").value=0;
+row.querySelector(".stock").innerText=0;
 }
 calc(row.querySelector(".std"));
 }
@@ -182,7 +197,12 @@ let std=parseFloat(row.querySelector(".std").value)||0;
 let box=parseFloat(row.querySelector(".box").value)||0;
 let stock=parseFloat(row.querySelector(".stock").innerText)||0;
 let total=std*box;
-if(total>stock){alert("Dispatch Qty > Stock!");row.querySelector(".box").value=0;total=0;}
+
+if(total>stock){
+alert("Dispatch Qty > Stock!");
+row.querySelector(".box").value=0;
+total=0;
+}
 row.querySelector(".total").innerText=total;
 updateGrandTotal();
 }
@@ -192,38 +212,97 @@ let total=0;
 document.querySelectorAll("#data-body tr").forEach(row=>{
 total+=parseFloat(row.querySelector(".total").innerText)||0;
 });
-grandTotal.innerText=total;
+document.getElementById("grandTotal").innerText=total;
 }
 
-function delRow(btn){btn.closest("tr").remove();updateSR();updateGrandTotal();}
-function updateSR(){document.querySelectorAll("#data-body tr").forEach((row,i)=>{row.querySelector(".sr").innerText=i+1;});}
-
-function submitForm(){alert("Submit working same as before");}
-
-function downloadPDF(){
-html2pdf().from(dispatchForm).save("Dispatch_"+slip.innerText+".pdf");
+function delRow(btn){ 
+btn.closest("tr").remove(); 
+updateSR(); 
+updateGrandTotal(); 
 }
 
-function downloadDateRange(){
-let from=fromDate.value;
-let to=toDate.value;
-if(!from||!to){alert("Select dates");return;}
-fetch(webAppUrl+"?action=dateRange&from="+from+"&to="+to)
+function updateSR(){
+document.querySelectorAll("#data-body tr").forEach((row,i)=>{
+row.querySelector(".sr").innerText=i+1;
+});
+}
+
+function submitForm(){
+if(userRole.toLowerCase()!=="admin"){ alert("Only Admin Allowed!"); return; }
+
+let rows=[];
+document.querySelectorAll("#data-body tr").forEach(row=>{
+let model=row.querySelector(".model").value;
+let std=parseFloat(row.querySelector(".std").value)||0;
+let box=parseFloat(row.querySelector(".box").value)||0;
+let total=std*box;
+let remark=row.querySelector(".remark").value||"";
+if(model && total>0){
+rows.push({model,stdBox:std,numBox:box,totalQty:total,remark});
+}
+});
+
+if(rows.length===0){ alert("No Data To Submit"); return; }
+
+fetch(webAppUrl,{
+method:"POST",
+body:JSON.stringify({
+slip_num:slip.innerText,
+user:loggedUser,
+rows:rows
+})
+})
 .then(res=>res.json())
 .then(data=>{
-if(data.status!=="success"){alert("No Data");return;}
-let html=`<h2>Dispatch Report</h2><p>From ${from} To ${to}</p><table border="1" width="100%" style="border-collapse:collapse;text-align:center;"><tr><th>Date</th><th>Slip</th><th>Model</th><th>Total Qty</th><th>User</th></tr>`;
-data.rows.forEach(r=>{
-html+=`<tr><td>${r.date}</td><td>${r.slip}</td><td>${r.model}</td><td>${r.totalQty}</td><td>${r.user}</td></tr>`;
+if(data.status==="success"){
+alert("Saved Successfully! Slip: "+data.slip);
+init();
+}else{
+alert("Error: "+data.message);
+}
+})
+.catch(()=> alert("Network Error"));
+}
+
+function reprintSlip(){
+if(userRole.toLowerCase()!=="admin"){ alert("Only Admin Can Reprint!"); return; }
+
+let slipNo=prompt("Enter Slip Number (Example: FG05)");
+if(!slipNo) return;
+
+fetch(webAppUrl+"?action=getSlip&slip="+encodeURIComponent(slipNo))
+.then(res=>res.json())
+.then(data=>{
+if(data.status!=="success"){ alert("Slip Not Found!"); return; }
+
+document.getElementById("backBtn").style.display="block";
+slip.innerText=slipNo.toUpperCase();
+date_header.innerText=data.rows[0].date;
+dataBody.innerHTML="";
+let grand=0;
+
+data.rows.forEach(item=>{
+grand+=parseFloat(item.totalQty)||0;
+let tr=document.createElement("tr");
+tr.innerHTML=`
+<td class="sr"></td>
+<td>${item.model}</td>
+<td>${item.stdBox}</td>
+<td>${item.numBox}</td>
+<td>${item.totalQty}</td>
+<td></td>
+<td>${item.remark||""}</td>
+<td></td>`;
+dataBody.appendChild(tr);
 });
-html+="</table>";
-let div=document.createElement("div");
-div.innerHTML=html;
-html2pdf().from(div).save("Report_"+from+"_to_"+to+".pdf");
+
+document.getElementById("grandTotal").innerText=grand;
+updateSR();
 });
 }
 
-function goBack(){init();}
+function goBack(){ init(); }
+
 </script>
 </body>
 </html>
