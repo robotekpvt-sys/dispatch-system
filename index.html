@@ -114,9 +114,20 @@ const webAppUrl="https://script.google.com/macros/s/AKfycbyHZIR3-HP2-H_Qlzgs6uzg
 let masterData=[];
 let userRole="";
 let loggedUser="";
+
 const dataBody=document.getElementById("data-body");
+const grandTotalEl=document.getElementById("grandTotal");
+const backBtn=document.getElementById("backBtn");
+
+function disableButton(btn){
+btn.disabled=true;
+setTimeout(()=>btn.disabled=false,800);
+}
 
 function login(){
+let btn=document.querySelector(".login-btn");
+disableButton(btn);
+
 let user=username.value.trim();
 let pass=password.value.trim();
 if(!user || !pass){ loginMsg.innerText="Enter Username & Password"; return; }
@@ -125,15 +136,15 @@ fetch(webAppUrl+"?action=login&user="+encodeURIComponent(user)+"&pass="+encodeUR
 .then(res=>res.json())
 .then(data=>{
 if(data.status==="success"){
-userRole=data.role || "";
+userRole=data.role||"";
 loggedUser=user;
-document.getElementById("issuerName").innerText=loggedUser;
+issuerName.innerText=loggedUser;
 loginDiv.style.display="none";
 dispatchForm.style.display="block";
 document.body.style.background="#f4f4f4";
 init();
 }else{
-loginMsg.innerText=data.message || "Invalid Login!";
+loginMsg.innerText=data.message||"Invalid Login!";
 }
 })
 .catch(()=> alert("Server Connection Error"));
@@ -141,9 +152,8 @@ loginMsg.innerText=data.message || "Invalid Login!";
 
 function init(){
 date_header.innerText=new Date().toLocaleDateString("en-GB");
-document.getElementById("backBtn").style.display="none";
-document.getElementById("issuerName").innerText=loggedUser;
-document.getElementById("grandTotal").innerText=0;
+backBtn.style.display="none";
+grandTotalEl.innerText=0;
 
 fetch(webAppUrl)
 .then(res=>res.json())
@@ -157,30 +167,30 @@ addRow();
 
 function addRow(){
 let tr=document.createElement("tr");
+
+let options='<option value="">Select</option>';
+masterData.forEach(item=>{
+options+=`<option value="${item.model}">${item.model}</option>`;
+});
+
 tr.innerHTML=`
 <td class="sr"></td>
-<td><select onchange="updateRow(this)" class="model"><option value="">Select</option></select></td>
+<td><select onchange="updateRow(this)" class="model">${options}</select></td>
 <td><input type="number" class="std" value="0" min="0" oninput="calc(this)"></td>
 <td><input type="number" class="box" value="0" min="0" oninput="calc(this)"></td>
 <td class="total">0</td>
 <td class="stock">0</td>
 <td><input type="text" class="remark"></td>
 <td><button class="delete-btn" onclick="delRow(this)">X</button></td>`;
-dataBody.appendChild(tr);
 
-let select=tr.querySelector(".model");
-masterData.forEach(item=>{
-let opt=document.createElement("option");
-opt.value=item.model;
-opt.textContent=item.model;
-select.appendChild(opt);
-});
+dataBody.appendChild(tr);
 updateSR();
 }
 
 function updateRow(sel){
 let row=sel.closest("tr");
 let item=masterData.find(x=>x.model===sel.value);
+
 if(item){
 row.querySelector(".std").value=item.standardBox;
 row.querySelector(".stock").innerText=item.stock;
@@ -188,59 +198,73 @@ row.querySelector(".stock").innerText=item.stock;
 row.querySelector(".std").value=0;
 row.querySelector(".stock").innerText=0;
 }
+
 calc(row.querySelector(".std"));
 }
 
 function calc(el){
 let row=el.closest("tr");
-let std=parseFloat(row.querySelector(".std").value)||0;
-let box=parseFloat(row.querySelector(".box").value)||0;
-let stock=parseFloat(row.querySelector(".stock").innerText)||0;
+
+let std=+row.querySelector(".std").value||0;
+let box=+row.querySelector(".box").value||0;
+let stock=+row.querySelector(".stock").innerText||0;
+
 let total=std*box;
 
 if(total>stock){
-alert("Dispatch Qty > Stock!");
 row.querySelector(".box").value=0;
 total=0;
 }
+
 row.querySelector(".total").innerText=total;
 updateGrandTotal();
 }
 
 function updateGrandTotal(){
 let total=0;
-document.querySelectorAll("#data-body tr").forEach(row=>{
-total+=parseFloat(row.querySelector(".total").innerText)||0;
-});
-document.getElementById("grandTotal").innerText=total;
+let rows=dataBody.rows;
+
+for(let i=0;i<rows.length;i++){
+total+=+rows[i].querySelector(".total").innerText||0;
 }
 
-function delRow(btn){ 
-btn.closest("tr").remove(); 
-updateSR(); 
-updateGrandTotal(); 
+grandTotalEl.innerText=total;
+}
+
+function delRow(btn){
+btn.closest("tr").remove();
+updateSR();
+updateGrandTotal();
 }
 
 function updateSR(){
-document.querySelectorAll("#data-body tr").forEach((row,i)=>{
-row.querySelector(".sr").innerText=i+1;
-});
+let rows=dataBody.rows;
+for(let i=0;i<rows.length;i++){
+rows[i].querySelector(".sr").innerText=i+1;
+}
 }
 
 function submitForm(){
 if(userRole.toLowerCase()!=="admin"){ alert("Only Admin Allowed!"); return; }
 
+let btn=document.querySelector(".submit-btn");
+disableButton(btn);
+
 let rows=[];
-document.querySelectorAll("#data-body tr").forEach(row=>{
+let trs=dataBody.rows;
+
+for(let i=0;i<trs.length;i++){
+let row=trs[i];
 let model=row.querySelector(".model").value;
-let std=parseFloat(row.querySelector(".std").value)||0;
-let box=parseFloat(row.querySelector(".box").value)||0;
+let std=+row.querySelector(".std").value||0;
+let box=+row.querySelector(".box").value||0;
 let total=std*box;
 let remark=row.querySelector(".remark").value||"";
+
 if(model && total>0){
 rows.push({model,stdBox:std,numBox:box,totalQty:total,remark});
 }
-});
+}
 
 if(rows.length===0){ alert("No Data To Submit"); return; }
 
@@ -275,14 +299,15 @@ fetch(webAppUrl+"?action=getSlip&slip="+encodeURIComponent(slipNo))
 .then(data=>{
 if(data.status!=="success"){ alert("Slip Not Found!"); return; }
 
-document.getElementById("backBtn").style.display="block";
+backBtn.style.display="block";
 slip.innerText=slipNo.toUpperCase();
 date_header.innerText=data.rows[0].date;
 dataBody.innerHTML="";
 let grand=0;
 
 data.rows.forEach(item=>{
-grand+=parseFloat(item.totalQty)||0;
+grand+=+item.totalQty||0;
+
 let tr=document.createElement("tr");
 tr.innerHTML=`
 <td class="sr"></td>
@@ -293,10 +318,11 @@ tr.innerHTML=`
 <td></td>
 <td>${item.remark||""}</td>
 <td></td>`;
+
 dataBody.appendChild(tr);
 });
 
-document.getElementById("grandTotal").innerText=grand;
+grandTotalEl.innerText=grand;
 updateSR();
 });
 }
@@ -306,3 +332,4 @@ function goBack(){ init(); }
 </script>
 </body>
 </html>
+
