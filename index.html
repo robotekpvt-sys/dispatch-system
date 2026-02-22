@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Dispatch FG Store</title>
+
+<style>
+body{margin:0;font-family:'Segoe UI',sans-serif;background:linear-gradient(135deg,#667eea,#764ba2);min-height:100vh;}
+.login-wrapper{display:flex;justify-content:center;align-items:center;height:100vh;}
+.login-card{width:380px;padding:45px;border-radius:20px;background:rgba(255,255,255,0.12);backdrop-filter:blur(20px);box-shadow:0 25px 45px rgba(0,0,0,0.35);text-align:center;color:white;}
+.input-group{margin-bottom:20px;}
+.input-group input{width:100%;padding:14px;border:none;border-radius:10px;font-size:16px;outline:none;background:rgba(255,255,255,0.9);}
+.login-btn{width:100%;padding:14px;border:none;border-radius:10px;background:linear-gradient(90deg,#00c6ff,#0072ff);color:white;font-weight:bold;cursor:pointer;}
+.container{width:1200px;margin:20px auto;background:white;border-radius:10px;padding-bottom:20px;display:none;box-shadow:0 10px 30px rgba(0,0,0,0.2);}
+.header{background:#c69c6d;text-align:center;padding:15px;font-weight:bold;font-size:26px;border-radius:10px 10px 0 0;position:relative;}
+#backBtn{position:absolute;left:20px;cursor:pointer;font-size:22px;display:none;}
+table{width:100%;border-collapse:collapse;}
+th,td{border:1px solid black;padding:12px 8px;text-align:center;font-size:18px;}
+th{background:#e8e1d5;}
+input,select{width:95%;border:none;text-align:center;background:transparent;font-size:17px;outline:none;}
+.add-btn,.submit-btn,.print-btn{padding:12px 30px;border:none;cursor:pointer;font-weight:bold;border-radius:6px;margin:10px;font-size:18px;}
+.add-btn{background:#c69c6d;}
+.submit-btn{background:#28a745;color:white;}
+.print-btn{background:#007bff;color:white;}
+.delete-btn{background:#d9534f;color:white;border:none;padding:8px 15px;cursor:pointer;border-radius:4px;font-weight:bold;}
+.action-buttons{text-align:center;margin-top:20px;}
+
+@media print {
+.add-btn,.action-buttons,.delete-btn,#backBtn,.login-wrapper{display:none !important;}
+th:nth-child(6), td:nth-child(6),
+th:nth-child(8), td:nth-child(8){display:none !important;}
+.container{width:100% !important;margin:0 !important;box-shadow:none !important;display:block !important;}
+body{background:white !important;}
+}
+</style>
+</head>
+
+<body>
+
+<div id="loginDiv" class="login-wrapper">
+<div class="login-card">
+<h2>Dispatch Login</h2>
+<div class="input-group"><input type="text" id="username" placeholder="Username"></div>
+<div class="input-group"><input type="password" id="password" placeholder="Password"></div>
+<button class="login-btn" onclick="login()">Login</button>
+<p id="loginMsg"></p>
+</div>
+</div>
+
+<div class="container" id="dispatchForm">
+
+<div class="header">
+<span id="backBtn" onclick="goBack()">⬅</span>
+DISPATCH (FG STORE)
+</div>
+
+<table>
+<tr>
+<td><b>Slip:</b> <span id="slip">FG01</span></td>
+<td><b>Date:</b> <span id="date_header"></span></td>
+</tr>
+</table>
+
+<table>
+<thead>
+<tr>
+<th>SR</th>
+<th>MODEL</th>
+<th>Std Box</th>
+<th>No Box</th>
+<th>Total Qty</th>
+<th>Stock</th>
+<th>Remark</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody id="data-body"></tbody>
+
+<tfoot>
+<tr>
+<td colspan="4" style="text-align:right;font-weight:bold;font-size:20px;">
+Grand Total :
+</td>
+<td style="font-weight:bold;font-size:20px;" id="grandTotal">0</td>
+<td colspan="3"></td>
+</tr>
+</tfoot>
+</table>
+
+<button class="add-btn" onclick="addRow()">+ Add Model</button>
+
+<!-- CLEAN SIGNATURE SECTION -->
+<div style="margin-top:15px; display:flex; justify-content:space-between; padding:0 150px; font-size:18px;">
+<div>
+<b>Issuer :</b> <span id="issuerName"></span>
+</div>
+<div>
+
+
+
+<b>Receiver</b>
+</div>
+</div>
+
+<div class="action-buttons">
+<button class="submit-btn" onclick="submitForm()">Submit</button>
+<button class="print-btn" onclick="window.print()">Print</button>
+<button class="print-btn" onclick="reprintSlip()">Reprint Slip</button>
+</div>
+
+</div>
+
+<script>
+
+const webAppUrl="https://script.google.com/macros/s/AKfycbzTXNEaDqTN3yqvf0Qlbkf_jwLii44hvjfj3JGAtZPZdqhisv0Qw4Onzp_c_uNqRhCNQg/exec";
+
+let masterData=[];
+let userRole="";
+let loggedUser="";
+const dataBody=document.getElementById("data-body");
+
+function login(){
+let user=username.value.trim();
+let pass=password.value.trim();
+if(!user || !pass){ loginMsg.innerText="Enter Username & Password"; return; }
+
+fetch(webAppUrl+"?action=login&user="+encodeURIComponent(user)+"&pass="+encodeURIComponent(pass))
+.then(res=>res.json())
+.then(data=>{
+if(data.status==="success"){
+userRole=data.role || "";
+loggedUser=user;
+document.getElementById("issuerName").innerText=loggedUser;
+loginDiv.style.display="none";
+dispatchForm.style.display="block";
+document.body.style.background="#f4f4f4";
+init();
+}else{
+loginMsg.innerText=data.message || "Invalid Login!";
+}
+})
+.catch(()=> alert("Server Connection Error"));
+}
+
+function init(){
+date_header.innerText=new Date().toLocaleDateString("en-GB");
+document.getElementById("backBtn").style.display="none";
+document.getElementById("issuerName").innerText=loggedUser;
+document.getElementById("grandTotal").innerText=0;
+
+fetch(webAppUrl)
+.then(res=>res.json())
+.then(data=>{
+masterData=data.items||[];
+slip.innerText=(data.nextSlip||"FG01").toUpperCase();
+dataBody.innerHTML="";
+addRow();
+});
+}
+
+function addRow(){
+let tr=document.createElement("tr");
+tr.innerHTML=`
+<td class="sr"></td>
+<td><select onchange="updateRow(this)" class="model"><option value="">Select</option></select></td>
+<td><input type="number" class="std" value="0" min="0" oninput="calc(this)"></td>
+<td><input type="number" class="box" value="0" min="0" oninput="calc(this)"></td>
+<td class="total">0</td>
+<td class="stock">0</td>
+<td><input type="text" class="remark"></td>
+<td><button class="delete-btn" onclick="delRow(this)">X</button></td>`;
+dataBody.appendChild(tr);
+
+let select=tr.querySelector(".model");
+masterData.forEach(item=>{
+let opt=document.createElement("option");
+opt.value=item.model;
+opt.textContent=item.model;
+select.appendChild(opt);
+});
+updateSR();
+}
+
+function updateRow(sel){
+let row=sel.closest("tr");
+let item=masterData.find(x=>x.model===sel.value);
+if(item){
+row.querySelector(".std").value=item.standardBox;
+row.querySelector(".stock").innerText=item.stock;
+}else{
+row.querySelector(".std").value=0;
+row.querySelector(".stock").innerText=0;
+}
+calc(row.querySelector(".std"));
+}
+
+function calc(el){
+let row=el.closest("tr");
+let std=parseFloat(row.querySelector(".std").value)||0;
+let box=parseFloat(row.querySelector(".box").value)||0;
+let stock=parseFloat(row.querySelector(".stock").innerText)||0;
+let total=std*box;
+
+if(total>stock){
+alert("Dispatch Qty > Stock!");
+row.querySelector(".box").value=0;
+total=0;
+}
+row.querySelector(".total").innerText=total;
+updateGrandTotal();
+}
+
+function updateGrandTotal(){
+let total=0;
+document.querySelectorAll("#data-body tr").forEach(row=>{
+total+=parseFloat(row.querySelector(".total").innerText)||0;
+});
+document.getElementById("grandTotal").innerText=total;
+}
+
+function delRow(btn){ 
+btn.closest("tr").remove(); 
+updateSR(); 
+updateGrandTotal(); 
+}
+
+function updateSR(){
+document.querySelectorAll("#data-body tr").forEach((row,i)=>{
+row.querySelector(".sr").innerText=i+1;
+});
+}
+
+function submitForm(){
+if(userRole.toLowerCase()!=="admin"){ alert("Only Admin Allowed!"); return; }
+
+let rows=[];
+document.querySelectorAll("#data-body tr").forEach(row=>{
+let model=row.querySelector(".model").value;
+let std=parseFloat(row.querySelector(".std").value)||0;
+let box=parseFloat(row.querySelector(".box").value)||0;
+let total=std*box;
+let remark=row.querySelector(".remark").value||"";
+if(model && total>0){
+rows.push({model,stdBox:std,numBox:box,totalQty:total,remark});
+}
+});
+
+if(rows.length===0){ alert("No Data To Submit"); return; }
+
+fetch(webAppUrl,{
+method:"POST",
+body:JSON.stringify({
+slip_num:slip.innerText,
+user:loggedUser,
+rows:rows
+})
+})
+.then(res=>res.json())
+.then(data=>{
+if(data.status==="success"){
+alert("Saved Successfully! Slip: "+data.slip);
+init();
+}else{
+alert("Error: "+data.message);
+}
+})
+.catch(()=> alert("Network Error"));
+}
+
+function reprintSlip(){
+if(userRole.toLowerCase()!=="admin"){ alert("Only Admin Can Reprint!"); return; }
+
+let slipNo=prompt("Enter Slip Number (Example: FG05)");
+if(!slipNo) return;
+
+fetch(webAppUrl+"?action=getSlip&slip="+encodeURIComponent(slipNo))
+.then(res=>res.json())
+.then(data=>{
+if(data.status!=="success"){ alert("Slip Not Found!"); return; }
+
+document.getElementById("backBtn").style.display="block";
+slip.innerText=slipNo.toUpperCase();
+date_header.innerText=data.rows[0].date;
+dataBody.innerHTML="";
+let grand=0;
+
+data.rows.forEach(item=>{
+grand+=parseFloat(item.totalQty)||0;
+let tr=document.createElement("tr");
+tr.innerHTML=`
+<td class="sr"></td>
+<td>${item.model}</td>
+<td>${item.stdBox}</td>
+<td>${item.numBox}</td>
+<td>${item.totalQty}</td>
+<td></td>
+<td>${item.remark||""}</td>
+<td></td>`;
+dataBody.appendChild(tr);
+});
+
+document.getElementById("grandTotal").innerText=grand;
+updateSR();
+});
+}
+
+function goBack(){ init(); }
+
+</script>
+</body>
+</html>
